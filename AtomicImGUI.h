@@ -36,6 +36,9 @@
 
 #include "imgui/imgui.h"
 
+namespace Atomic
+{
+
 ATOMIC_EVENT(E_IMGUIFRAME, ImGUIFrame) { }
 
 class AtomicImGUI
@@ -73,3 +76,5 @@ protected:
     void OnTouchEnd(Atomic::VariantMap& args);
     void OnTouchMove(Atomic::VariantMap& args);
 };
+
+}

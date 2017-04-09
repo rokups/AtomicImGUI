@@ -36,9 +36,9 @@
 #include <Atomic/Resource/ResourceCache.h>
 #include <SDL.h>
 
-using namespace Atomic;
 using namespace std::placeholders;
-
+namespace Atomic
+{
 
 AtomicImGUI::AtomicImGUI(Atomic::Context* context)
     : Object(context)
@@ -64,7 +64,9 @@ AtomicImGUI::AtomicImGUI(Atomic::Context* context)
     io.KeyMap[ImGuiKey_Y] = SCANCODE_Y;
     io.KeyMap[ImGuiKey_Z] = SCANCODE_Z;
 
-    io.RenderDrawListsFn = [](ImDrawData* data) { static_cast<AtomicImGUI*>(ImGui::GetIO().UserData)->OnRenderDrawLists(data); };
+    io.RenderDrawListsFn = [](ImDrawData* data) {
+        static_cast<AtomicImGUI*>(ImGui::GetIO().UserData)->OnRenderDrawLists(data);
+    };
     io.SetClipboardTextFn = [](const char* text) { SDL_SetClipboardText(text); };
     io.GetClipboardTextFn = []() -> const char* { return SDL_GetClipboardText(); };
 
@@ -174,7 +176,7 @@ void AtomicImGUI::OnRenderDrawLists(ImDrawData* data)
         // in rendering loop.
         if (cmd_list->VtxBuffer.Size > _vertex_buffer.GetVertexCount())
         {
-            PODVector<VertexElement> elems = { VertexElement(TYPE_VECTOR2, SEM_POSITION),
+            PODVector <VertexElement> elems = {VertexElement(TYPE_VECTOR2, SEM_POSITION),
                                                VertexElement(TYPE_VECTOR2, SEM_TEXCOORD),
                                                VertexElement(TYPE_UBYTE4_NORM, SEM_COLOR)
             };
@@ -244,7 +246,8 @@ void AtomicImGUI::OnRenderDrawLists(ImDrawData* data)
                 _graphics->SetBlendMode(BLEND_ALPHA);
                 _graphics->SetScissorTest(true, scissor);
                 _graphics->SetTexture(0, texture);
-                _graphics->Draw(TRIANGLE_LIST, idx_buffer_offset, cmd->ElemCount, 0, 0, _vertex_buffer.GetVertexCount());
+                _graphics->Draw(TRIANGLE_LIST, idx_buffer_offset, cmd->ElemCount, 0, 0,
+                                _vertex_buffer.GetVertexCount());
                 idx_buffer_offset += cmd->ElemCount;
             }
         }
@@ -265,7 +268,7 @@ ImFont* AtomicImGUI::AddFont(const String& font_path, float size, bool merge, co
 
     if (auto font_file = GetSubsystem<ResourceCache>()->GetFile(font_path))
     {
-        PODVector<uint8_t> data;
+        PODVector <uint8_t> data;
         data.Resize(font_file->GetSize());
         auto bytes_len = font_file->Read(&data.Front(), data.Size());
         ImFontConfig cfg;
@@ -285,7 +288,8 @@ void AtomicImGUI::ReallocateFontTexture()
     // Create font texture.
     unsigned char* pixels;
     int width, height;
-    io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);   // Load as RGBA 32-bits for OpenGL3 demo because it is more likely to be compatible with user's existing shader.
+    io.Fonts->GetTexDataAsRGBA32(&pixels, &width,
+                                 &height);   // Load as RGBA 32-bits for OpenGL3 demo because it is more likely to be compatible with user's existing shader.
 
     if (!_font_texture || width != _font_texture->GetWidth() || height != _font_texture->GetHeight())
     {
@@ -356,4 +360,6 @@ void AtomicImGUI::OnTouchMove(VariantMap& args)
         io_.MousePos.x = (float)args[P_X].GetInt();
         io_.MousePos.y = (float)args[P_Y].GetInt();
     }
+}
+
 }
