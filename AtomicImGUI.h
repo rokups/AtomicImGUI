@@ -47,6 +47,7 @@ class AtomicImGUI
     ATOMIC_OBJECT(AtomicImGUI, Atomic::Object);
 public:
     AtomicImGUI(Atomic::Context* context);
+    ~AtomicImGUI();
     //! Add font to imgui subsystem.
     /*!
       \param font_path a string pointing to TTF font resource.

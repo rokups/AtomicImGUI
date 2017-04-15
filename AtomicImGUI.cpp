@@ -91,6 +91,11 @@ AtomicImGUI::AtomicImGUI(Atomic::Context* context)
     SubscribeToEvent(E_SCREENMODE, std::bind(&AtomicImGUI::OnScreenModeChange, this));
 }
 
+AtomicImGUI::~AtomicImGUI()
+{
+    ImGui::Shutdown();
+}
+
 void AtomicImGUI::OnScreenModeChange()
 {
     // Update screen size
@@ -185,6 +190,15 @@ void AtomicImGUI::OnRenderDrawLists(ImDrawData* data)
         if (cmd_list->IdxBuffer.Size > _index_buffer.GetIndexCount())
             _index_buffer.SetSize((unsigned int)(cmd_list->IdxBuffer.Size * 2), false, true);
 
+#if (defined(_WIN32) && !defined(ATOMIC_D3D11) && !defined(ATOMIC_OPENGL)) || defined(ATOMIC_D3D9)
+        for (int i = 0; i < cmd_list->VtxBuffer.Size; i++)
+        {
+            ImDrawVert& v = cmd_list->VtxBuffer.Data[i];
+            v.pos.x += 0.5f;
+            v.pos.y += 0.5f;
+        }
+#endif
+
         _vertex_buffer.SetDataRange(cmd_list->VtxBuffer.Data, 0, (unsigned int)cmd_list->VtxBuffer.Size, true);
         _index_buffer.SetDataRange(cmd_list->IdxBuffer.Data, 0, (unsigned int)cmd_list->IdxBuffer.Size, true);
 
@@ -273,6 +287,7 @@ ImFont* AtomicImGUI::AddFont(const String& font_path, float size, bool merge, co
         auto bytes_len = font_file->Read(&data.Front(), data.Size());
         ImFontConfig cfg;
         cfg.MergeMode = merge;
+        cfg.FontDataOwnedByAtlas = false;
         if (auto new_font = ImGui::GetIO().Fonts->AddFontFromMemoryTTF(&data.Front(), bytes_len, size, &cfg, ranges))
         {
             ReallocateFontTexture();
