@@ -2,7 +2,6 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2017 Rokas Kupstys
- * Copyright (c) 2016 Yehonatan Ballas
  * Copyright (c) 2008-2016 the Urho3D project.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -35,6 +34,8 @@
 #include <Atomic/Core/Profiler.h>
 #include <Atomic/Resource/ResourceCache.h>
 #include <SDL.h>
+#include <imgui/imgui_internal.h>
+
 
 using namespace std::placeholders;
 namespace Atomic
@@ -67,14 +68,14 @@ AtomicImGUI::AtomicImGUI(Atomic::Context* context)
     io.RenderDrawListsFn = [](ImDrawData* data) {
         static_cast<AtomicImGUI*>(ImGui::GetIO().UserData)->OnRenderDrawLists(data);
     };
-    io.SetClipboardTextFn = [](const char* text) { SDL_SetClipboardText(text); };
-    io.GetClipboardTextFn = []() -> const char* { return SDL_GetClipboardText(); };
+    io.SetClipboardTextFn = [](void* user_data, const char* text) { SDL_SetClipboardText(text); };
+    io.GetClipboardTextFn = [](void* user_data) -> const char* { return SDL_GetClipboardText(); };
 
     io.UserData = this;
 
     io.Fonts->AddFontDefault();
     ReallocateFontTexture();
-    OnScreenModeChange();
+    UpdateProjectionMatrix();
 
     // Subscribe to events
     SubscribeToEvent(E_POSTUPDATE, std::bind(&AtomicImGUI::OnPostUpdate, this, _2));
@@ -82,13 +83,8 @@ AtomicImGUI::AtomicImGUI(Atomic::Context* context)
         ATOMIC_PROFILE(ImGuiRender);
         ImGui::Render();
     });
-    SubscribeToEvent(E_KEYUP, std::bind(&AtomicImGUI::OnKeyUp, this, _2));
-    SubscribeToEvent(E_KEYDOWN, std::bind(&AtomicImGUI::OnKeyDown, this, _2));
-    SubscribeToEvent(E_TEXTINPUT, std::bind(&AtomicImGUI::OnTextInput, this, _2));
-    SubscribeToEvent(E_TOUCHBEGIN, std::bind(&AtomicImGUI::OnTouchBegin, this, _2));
-    SubscribeToEvent(E_TOUCHEND, std::bind(&AtomicImGUI::OnTouchEnd, this, _2));
-    SubscribeToEvent(E_TOUCHMOVE, std::bind(&AtomicImGUI::OnTouchMove, this, _2));
-    SubscribeToEvent(E_SCREENMODE, std::bind(&AtomicImGUI::OnScreenModeChange, this));
+    SubscribeToEvent(E_SDLRAWINPUT, std::bind(&AtomicImGUI::OnRawEvent, this, _2));
+    SubscribeToEvent(E_SCREENMODE, std::bind(&AtomicImGUI::UpdateProjectionMatrix, this));
 }
 
 AtomicImGUI::~AtomicImGUI()
@@ -96,7 +92,7 @@ AtomicImGUI::~AtomicImGUI()
     ImGui::Shutdown();
 }
 
-void AtomicImGUI::OnScreenModeChange()
+void AtomicImGUI::UpdateProjectionMatrix()
 {
     // Update screen size
     auto graphics = GetSubsystem<Graphics>();
@@ -109,13 +105,84 @@ void AtomicImGUI::OnScreenModeChange()
     Vector2 offset(-1.0f, 1.0f);
 
     _projection = Matrix4(Matrix4::IDENTITY);
-    _projection.m00_ = scale.x_ /** _uiScale*/;
+    _projection.m00_ = scale.x_ * _uiScale;
     _projection.m03_ = offset.x_;
-    _projection.m11_ = scale.y_ /** _uiScale*/;
+    _projection.m11_ = scale.y_ * _uiScale;
     _projection.m13_ = offset.y_;
     _projection.m22_ = 1.0f;
     _projection.m23_ = 0.0f;
     _projection.m33_ = 1.0f;
+}
+
+void AtomicImGUI::OnRawEvent(VariantMap& args)
+{
+    auto evt = static_cast<SDL_Event*>(args[SDLRawInput::P_SDLEVENT].Get<void*>());
+    auto& io = ImGui::GetIO();
+    switch (evt->type)
+    {
+    case SDL_KEYUP:
+    case SDL_KEYDOWN:
+    {
+        auto code = evt->key.keysym.scancode;
+        auto down = evt->type == SDL_KEYDOWN;
+        if (code < 512)
+            io.KeysDown[code] = down;
+        if (evt->key.keysym.sym == SDLK_LCTRL || evt->key.keysym.sym == SDLK_RCTRL)
+            io.KeyCtrl = down;
+        else if (evt->key.keysym.sym == SDLK_LSHIFT || evt->key.keysym.sym == SDLK_RSHIFT)
+            io.KeyShift = down;
+        else if (evt->key.keysym.sym == SDLK_LALT || evt->key.keysym.sym == SDLK_RALT)
+            io.KeyAlt = down;
+        else if (evt->key.keysym.sym == SDLK_LGUI || evt->key.keysym.sym == SDLK_RGUI)
+            io.KeySuper = down;
+        break;
+    }
+    case SDL_MOUSEWHEEL:
+        io.MouseWheel = evt->wheel.y;
+        break;
+    case SDL_MOUSEBUTTONUP:
+    case SDL_MOUSEBUTTONDOWN:
+        io.MouseDown[evt->button.button - 1] = evt->type == SDL_MOUSEBUTTONDOWN;
+    case SDL_MOUSEMOTION:
+        io.MousePos.x = evt->motion.x / _uiScale;
+        io.MousePos.y = evt->motion.y / _uiScale;
+        break;
+    case SDL_FINGERUP:
+        io.MouseDown[0] = false;
+        io.MousePos.x = -1;
+        io.MousePos.y = -1;
+    case SDL_FINGERDOWN:
+        io.MouseDown[0] = true;
+    case SDL_FINGERMOTION:
+        io.MousePos.x = evt->tfinger.x / _uiScale;
+        io.MousePos.y = evt->tfinger.y / _uiScale;
+        break;
+    case SDL_TEXTINPUT:
+        ImGui::GetIO().AddInputCharactersUTF8(evt->text.text);
+        break;
+    default:
+        break;
+    }
+
+    switch (evt->type)
+    {
+    case SDL_KEYUP:
+    case SDL_KEYDOWN:
+    case SDL_TEXTINPUT:
+        args[SDLRawInput::P_CONSUMED] = ImGui::GetCurrentContext()->FocusedWindow != 0;
+        break;
+    case SDL_MOUSEWHEEL:
+    case SDL_MOUSEBUTTONUP:
+    case SDL_MOUSEBUTTONDOWN:
+    case SDL_MOUSEMOTION:
+    case SDL_FINGERUP:
+    case SDL_FINGERDOWN:
+    case SDL_FINGERMOTION:
+        args[SDLRawInput::P_CONSUMED] = ImGui::IsMouseHoveringAnyWindow();
+        break;
+    default:
+        break;
+    }
 }
 
 void AtomicImGUI::OnPostUpdate(VariantMap& args)
@@ -123,36 +190,7 @@ void AtomicImGUI::OnPostUpdate(VariantMap& args)
     auto& io = ImGui::GetIO();
     float timeStep = args[PostUpdate::P_TIMESTEP].GetFloat();
     io.DeltaTime = timeStep > 0.0f ? timeStep : 1.0f / 60.0f;
-
-    // mouse input
-    auto input = GetSubsystem<Input>();
-    if (input->IsMouseVisible() && !input->GetTouchEmulation())
-    {
-        IntVector2 pos = input->GetMousePosition();
-        // Mouse position, in pixels (set to -1,-1 if no mouse / on another screen, etc.)
-        io.MousePos.x = (float)pos.x_;
-        io.MousePos.y = (float)pos.y_;
-    }
-    else
-    {
-        io.MousePos.x = -1.0f;
-        io.MousePos.y = -1.0f;
-    }
-
-    io.MouseDown[0] = input->GetMouseButtonDown(MOUSEB_LEFT);
-    io.MouseDown[1] = input->GetMouseButtonDown(MOUSEB_RIGHT);
-    io.MouseDown[2] = input->GetMouseButtonDown(MOUSEB_MIDDLE);
-    io.MouseWheel = (float)input->GetMouseMoveWheel();
-
-    // Modifiers
-    io.KeyCtrl = input->GetQualifierDown(QUAL_CTRL);
-    io.KeyShift = input->GetQualifierDown(QUAL_SHIFT);
-    io.KeyAlt = input->GetQualifierDown(QUAL_ALT);
-
-    // Start new ImGui frame
     ImGui::NewFrame();
-
-    // Send imgui NewFrame events, so users can use it as a guarenteed way to use imgui after NewFrame() was called.
     ATOMIC_PROFILE(ImGuiFrame);
     SendEvent(E_IMGUIFRAME);
 }
@@ -252,10 +290,11 @@ void AtomicImGUI::OnRenderDrawLists(ImDrawData* data)
                 IntRect scissor = IntRect(int(cmd->ClipRect.x), int(cmd->ClipRect.y),
                                           int(cmd->ClipRect.x + cmd->ClipRect.z),
                                           int(cmd->ClipRect.y + cmd->ClipRect.w));
-//                scissor.left_ = int(scissor.left_ * _uiScale);
-//                scissor.top_ = int(scissor.top_ * _uiScale);
-//                scissor.right_ = int(scissor.right_ * _uiScale);
-//                scissor.bottom_ = int(scissor.bottom_ * _uiScale);
+
+                scissor.left_ = int(scissor.left_ * _uiScale);
+                scissor.top_ = int(scissor.top_ * _uiScale);
+                scissor.right_ = int(scissor.right_ * _uiScale);
+                scissor.bottom_ = int(scissor.bottom_ * _uiScale);
 
                 _graphics->SetBlendMode(BLEND_ALPHA);
                 _graphics->SetScissorTest(true, scissor);
@@ -297,6 +336,12 @@ ImFont* AtomicImGUI::AddFont(const String& font_path, float size, bool merge, co
     return 0;
 }
 
+ImFont* AtomicImGUI::AddFont(const Atomic::String& font_path, float size, bool merge,
+                             const std::initializer_list<unsigned short>& ranges)
+{
+    return AddFont(font_path, size, merge, ranges.size() ? &*ranges.begin() : 0);
+}
+
 void AtomicImGUI::ReallocateFontTexture()
 {
     auto io = ImGui::GetIO();
@@ -320,61 +365,10 @@ void AtomicImGUI::ReallocateFontTexture()
     }
 }
 
-void AtomicImGUI::OnKeyUp(VariantMap& args)
+void AtomicImGUI::SetScale(float scale)
 {
-    auto code = args[KeyUp::P_SCANCODE].GetInt();
-    if (code < 512)
-        ImGui::GetIO().KeysDown[code] = false;
-}
-
-void AtomicImGUI::OnKeyDown(VariantMap& args)
-{
-    auto code = args[KeyUp::P_SCANCODE].GetInt();
-    if (code < 512)
-        ImGui::GetIO().KeysDown[code] = true;
-}
-
-void AtomicImGUI::OnTextInput(VariantMap& args)
-{
-    ImGui::GetIO().AddInputCharactersUTF8(args[TextInput::P_TEXT].GetString().CString());
-}
-
-void AtomicImGUI::OnTouchBegin(VariantMap& args)
-{
-    using namespace TouchBegin;
-    if (!_touching)
-    {
-        _touching = true;
-        _touch_id = args[P_TOUCHID].GetInt();
-        auto& io_ = ImGui::GetIO();
-        io_.MousePos.x = (float)args[P_X].GetInt();
-        io_.MousePos.y = (float)args[P_Y].GetInt();
-        io_.MouseDown[0] = true;
-    }
-}
-
-void AtomicImGUI::OnTouchEnd(VariantMap& args)
-{
-    using namespace TouchEnd;
-    if (args[P_TOUCHID].GetInt() == _touch_id)
-    {
-        auto& io_ = ImGui::GetIO();
-        io_.MousePos.x = (float)args[P_X].GetInt();
-        io_.MousePos.y = (float)args[P_Y].GetInt();
-        io_.MouseDown[0] = false;
-    }
-    _touching = false;
-}
-
-void AtomicImGUI::OnTouchMove(VariantMap& args)
-{
-    using namespace TouchMove;
-    if (args[P_TOUCHID].GetInt() == _touch_id)
-    {
-        auto& io_ = ImGui::GetIO();
-        io_.MousePos.x = (float)args[P_X].GetInt();
-        io_.MousePos.y = (float)args[P_Y].GetInt();
-    }
+    _uiScale = scale;
+    UpdateProjectionMatrix();
 }
 
 }

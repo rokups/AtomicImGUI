@@ -25,3 +25,4 @@ target_compile_definitions(AtomicImGUI
     PUBLIC
     -DIMGUI_DISABLE_OBSOLETE_FUNCTIONS=1
 )
+target_include_directories(AtomicImGUI PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
