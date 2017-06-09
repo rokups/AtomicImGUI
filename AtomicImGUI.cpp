@@ -41,7 +41,7 @@ using namespace std::placeholders;
 namespace Atomic
 {
 
-AtomicImGUI::AtomicImGUI(Atomic::Context* context)
+ImGUI::ImGUI(Atomic::Context* context)
     : Object(context)
     , _vertex_buffer(context)
     , _index_buffer(context)
@@ -66,7 +66,7 @@ AtomicImGUI::AtomicImGUI(Atomic::Context* context)
     io.KeyMap[ImGuiKey_Z] = SCANCODE_Z;
 
     io.RenderDrawListsFn = [](ImDrawData* data) {
-        static_cast<AtomicImGUI*>(ImGui::GetIO().UserData)->OnRenderDrawLists(data);
+        static_cast<ImGUI*>(ImGui::GetIO().UserData)->OnRenderDrawLists(data);
     };
     io.SetClipboardTextFn = [](void* user_data, const char* text) { SDL_SetClipboardText(text); };
     io.GetClipboardTextFn = [](void* user_data) -> const char* { return SDL_GetClipboardText(); };
@@ -78,21 +78,21 @@ AtomicImGUI::AtomicImGUI(Atomic::Context* context)
     UpdateProjectionMatrix();
 
     // Subscribe to events
-    SubscribeToEvent(E_POSTUPDATE, std::bind(&AtomicImGUI::OnPostUpdate, this, _2));
+    SubscribeToEvent(E_POSTUPDATE, std::bind(&ImGUI::OnPostUpdate, this, _2));
     SubscribeToEvent(E_ENDRENDERING, [&](StringHash, VariantMap&) {
         ATOMIC_PROFILE(ImGuiRender);
         ImGui::Render();
     });
-    SubscribeToEvent(E_SDLRAWINPUT, std::bind(&AtomicImGUI::OnRawEvent, this, _2));
-    SubscribeToEvent(E_SCREENMODE, std::bind(&AtomicImGUI::UpdateProjectionMatrix, this));
+    SubscribeToEvent(E_SDLRAWINPUT, std::bind(&ImGUI::OnRawEvent, this, _2));
+    SubscribeToEvent(E_SCREENMODE, std::bind(&ImGUI::UpdateProjectionMatrix, this));
 }
 
-AtomicImGUI::~AtomicImGUI()
+ImGUI::~ImGUI()
 {
     ImGui::Shutdown();
 }
 
-void AtomicImGUI::UpdateProjectionMatrix()
+void ImGUI::UpdateProjectionMatrix()
 {
     // Update screen size
     auto graphics = GetSubsystem<Graphics>();
@@ -114,7 +114,7 @@ void AtomicImGUI::UpdateProjectionMatrix()
     _projection.m33_ = 1.0f;
 }
 
-void AtomicImGUI::OnRawEvent(VariantMap& args)
+void ImGUI::OnRawEvent(VariantMap& args)
 {
     auto evt = static_cast<SDL_Event*>(args[SDLRawInput::P_SDLEVENT].Get<void*>());
     auto& io = ImGui::GetIO();
@@ -185,7 +185,7 @@ void AtomicImGUI::OnRawEvent(VariantMap& args)
     }
 }
 
-void AtomicImGUI::OnPostUpdate(VariantMap& args)
+void ImGUI::OnPostUpdate(VariantMap& args)
 {
     auto& io = ImGui::GetIO();
     float timeStep = args[PostUpdate::P_TIMESTEP].GetFloat();
@@ -195,7 +195,7 @@ void AtomicImGUI::OnPostUpdate(VariantMap& args)
     SendEvent(E_IMGUIFRAME);
 }
 
-void AtomicImGUI::OnRenderDrawLists(ImDrawData* data)
+void ImGUI::OnRenderDrawLists(ImDrawData* data)
 {
     auto _graphics = GetSubsystem<Graphics>();
     // Engine does not render when window is closed or device is lost
@@ -308,7 +308,7 @@ void AtomicImGUI::OnRenderDrawLists(ImDrawData* data)
     _graphics->SetScissorTest(false);
 }
 
-ImFont* AtomicImGUI::AddFont(const String& font_path, float size, bool merge, const unsigned short* ranges)
+ImFont* ImGUI::AddFont(const String& font_path, float size, const unsigned short* ranges, bool merge)
 {
     auto io = ImGui::GetIO();
 
@@ -336,13 +336,13 @@ ImFont* AtomicImGUI::AddFont(const String& font_path, float size, bool merge, co
     return 0;
 }
 
-ImFont* AtomicImGUI::AddFont(const Atomic::String& font_path, float size, bool merge,
-                             const std::initializer_list<unsigned short>& ranges)
+ImFont* ImGUI::AddFont(const Atomic::String& font_path, float size, const std::initializer_list<unsigned short>& ranges,
+                       bool merge)
 {
-    return AddFont(font_path, size, merge, ranges.size() ? &*ranges.begin() : 0);
+    return AddFont(font_path, size, ranges.size() ? &*ranges.begin() : 0, merge);
 }
 
-void AtomicImGUI::ReallocateFontTexture()
+void ImGUI::ReallocateFontTexture()
 {
     auto io = ImGui::GetIO();
     // Create font texture.
@@ -365,8 +365,10 @@ void AtomicImGUI::ReallocateFontTexture()
     }
 }
 
-void AtomicImGUI::SetScale(float scale)
+void ImGUI::SetScale(float scale)
 {
+    if (_uiScale == scale)
+        return;
     _uiScale = scale;
     UpdateProjectionMatrix();
 }

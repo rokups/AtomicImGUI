@@ -39,13 +39,13 @@ namespace Atomic
 
 ATOMIC_EVENT(E_IMGUIFRAME, ImGUIFrame) { }
 
-class AtomicImGUI
+class ImGUI
     : public Atomic::Object
 {
-    ATOMIC_OBJECT(AtomicImGUI, Atomic::Object);
+    ATOMIC_OBJECT(ImGUI, Atomic::Object);
 public:
-    AtomicImGUI(Atomic::Context* context);
-    ~AtomicImGUI();
+    ImGUI(Atomic::Context* context);
+    ~ImGUI();
 
     //! Get ui scale.
     //! \return scale of ui.
@@ -57,21 +57,21 @@ public:
     /*!
       \param font_path a string pointing to TTF font resource.
       \param size a font size. If 0 then size of last font is used.
-      \param merge set to true if new font should be merged to last active font.
       \param ranges optional ranges of font that should be used. Parameter is array of {start1, stop1, ..., startN, stopN, 0}.
+      \param merge set to true if new font should be merged to last active font.
       \return ImFont instance that may be used for setting current font when drawing GUI.
     */
-    ImFont* AddFont(const Atomic::String& font_path, float size=0, bool merge=false, const unsigned short* ranges=0);
+    ImFont* AddFont(const Atomic::String& font_path, float size=0, const unsigned short* ranges=0, bool merge=false);
     //! Add font to imgui subsystem.
     /*!
       \param font_path a string pointing to TTF font resource.
       \param size a font size. If 0 then size of last font is used.
-      \param merge set to true if new font should be merged to last active font.
       \param ranges optional ranges of font that should be used. Parameter is std::initializer_list of {start1, stop1, ..., startN, stopN, 0}.
+      \param merge set to true if new font should be merged to last active font.
       \return ImFont instance that may be used for setting current font when drawing GUI.
     */
-    ImFont* AddFont(const Atomic::String& font_path, float size = 0, bool merge = false,
-                    const std::initializer_list<unsigned short>& ranges = {});
+    ImFont* AddFont(const Atomic::String& font_path, float size=0,
+                    const std::initializer_list<unsigned short>& ranges={}, bool merge=false);
 
 protected:
     float _uiScale = 1.f;

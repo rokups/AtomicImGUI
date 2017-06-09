@@ -7,7 +7,7 @@ AtomicImGUI
 
 ```cpp
 // Create subsystem
-auto imgui = new AtomicImGUI(context_);
+auto imgui = new Atomic::ImGUI(context_);
 // Register a font (optional, default font is always created)
 const unsigned short range[] = {ICON_MIN_FA, ICON_MAX_FA, 0};
 imgui->AddFont("UI/fontawesome-webfont.ttf", 0, true, range);
