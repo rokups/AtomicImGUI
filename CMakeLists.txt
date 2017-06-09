@@ -26,3 +26,6 @@ target_compile_definitions(AtomicImGUI
     -DIMGUI_DISABLE_OBSOLETE_FUNCTIONS=1
 )
 target_include_directories(AtomicImGUI PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+if (NOT MSVC)
+    target_compile_options(AtomicImGUI PUBLIC -std=c++11)
+endif ()
