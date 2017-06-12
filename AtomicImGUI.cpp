@@ -287,14 +287,8 @@ void ImGUI::OnRenderDrawLists(ImDrawData* data)
                 _graphics->SetShaderParameter(VSP_ELAPSEDTIME, elapsedTime);
                 _graphics->SetShaderParameter(PSP_ELAPSEDTIME, elapsedTime);
 
-                IntRect scissor = IntRect(int(cmd->ClipRect.x), int(cmd->ClipRect.y),
-                                          int(cmd->ClipRect.x + cmd->ClipRect.z),
-                                          int(cmd->ClipRect.y + cmd->ClipRect.w));
-
-                scissor.left_ = int(scissor.left_ * _uiScale);
-                scissor.top_ = int(scissor.top_ * _uiScale);
-                scissor.right_ = int(scissor.right_ * _uiScale);
-                scissor.bottom_ = int(scissor.bottom_ * _uiScale);
+                IntRect scissor = IntRect(int(cmd->ClipRect.x * _uiScale), int(cmd->ClipRect.y * _uiScale),
+                                          int(cmd->ClipRect.z * _uiScale), int(cmd->ClipRect.w * _uiScale));
 
                 _graphics->SetBlendMode(BLEND_ALPHA);
                 _graphics->SetScissorTest(true, scissor);
